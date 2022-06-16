@@ -1,0 +1,31 @@
+[package]
+name = "lnd_client"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[build-dependencies]
+tonic-build = "0.6.2"
+
+[dependencies]
+thiserror = "1"
+
+# async/await
+futures-util = "0.3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+
+# encode/decode
+hex = "0.4"
+prost = "0.9"
+
+# parse
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# rest/rpc
+hyper = { version = "0.14", features = ["http2"] }
+rustls = { version = "0.19", features = ["dangerous_configuration"] }
+rustls-pemfile = "1.0"
+tonic = { version = "0.6.2", features = ["transport", "tls", "tls-roots"] }
+hyper-rustls = { version = "0.23", features = ["http2"] }
+webpki = "0.21.4"
