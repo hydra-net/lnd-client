@@ -86,14 +86,24 @@ impl LndClient {
         Ok(())
     }
 
-    pub async fn get_wallet_status(&mut self) -> Result<lnrpc::GetStateResponse, Error> {
+    pub async fn get_wallet_status(&mut self) -> Result<lnrpc::WalletState, Error> {
         let response = self
             .state_rpc
             .get_state(lnrpc::GetStateRequest {})
             .await?
             .into_inner();
 
-        Ok(response)
+        let wallet_status: lnrpc::WalletState;
+        match response.state {
+            1 => wallet_status = lnrpc::WalletState::Locked,
+            2 => wallet_status = lnrpc::WalletState::Unlocked,
+            3 => wallet_status = lnrpc::WalletState::RpcActive,
+            4 => wallet_status = lnrpc::WalletState::ServerActive,
+            255 => wallet_status = lnrpc::WalletState::WaitingToStart,
+            _ => wallet_status = lnrpc::WalletState::NonExisting,
+        }
+
+        Ok(wallet_status)
     }
 
     pub async fn subscribe_wallet_status(

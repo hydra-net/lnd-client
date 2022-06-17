@@ -31,14 +31,14 @@ impl LndClient {
         Ok(())
     }
 
-    pub async fn list_peers(&mut self) -> Result<lnrpc::ListPeersResponse, Error> {
+    pub async fn list_peers(&mut self) -> Result<Vec<lnrpc::Peer>, Error> {
         let request = tonic::Request::new(lnrpc::ListPeersRequest {
             latest_error: false,
         });
 
         let response = self.lightning_rpc.list_peers(request).await?.into_inner();
 
-        Ok(response)
+        Ok(response.peers)
     }
 
     pub async fn subscribe_peer_events(&mut self) -> Result<Streaming<lnrpc::PeerEvent>, Error> {
