@@ -9,7 +9,7 @@ use protobufs::{
     invoicesrpc::invoices_client::InvoicesClient,
     lnrpc::{
         lightning_client::LightningClient, wallet_unlocker_client::WalletUnlockerClient,
-        InitWalletRequest,
+        InitWalletRequest, UnlockWalletRequest,
     },
     routerrpc::router_client::RouterClient,
 };
@@ -32,11 +32,11 @@ pub type RouterRpcClient = RouterClient<InterceptedService<Channel, MacaroonInte
 #[derive(Clone)]
 pub struct LndClient {
     // pub node_id: String,
-    pub lightning_client: LightningRpcClient,
-    pub wallet_unlocker_client: WalletUnlockerRpcClient,
-    pub chain_notifier_client: ChainNotifierRpcClient,
-    pub invoices_client: InvoicesRpcClient,
-    pub router_client: RouterRpcClient,
+    pub lightning_rpc: LightningRpcClient,
+    pub wallet_unlocker_rpc: WalletUnlockerRpcClient,
+    pub chain_notifier_rpc: ChainNotifierRpcClient,
+    pub invoices_rpc: InvoicesRpcClient,
+    pub router_rpc: RouterRpcClient,
 }
 
 impl LndClient {
@@ -94,7 +94,12 @@ impl LndClient {
         Ok(client)
     }
 
-    pub async fn new(node_url: &str, cert_dir: &str, macaroon_dir: &str) -> Result<Self, Error> {
+    pub async fn new(
+        node_url: &str,
+        cert_dir: &str,
+        macaroon_dir: &str,
+        password: &str,
+    ) -> Result<Self, Error> {
         let cert_verifier = std::sync::Arc::new(CertVerifier::load(cert_dir).await?);
         let mut tls_config = rustls::ClientConfig::new();
         tls_config
@@ -131,7 +136,15 @@ impl LndClient {
 
         let macaroon = hex::encode(std::fs::read(macaroon_dir)?);
 
-        let client = create_client(endpoint, macaroon).await?;
+        let mut client = create_client(endpoint, macaroon).await?;
+
+        client
+            .wallet_unlocker_rpc
+            .unlock_wallet(UnlockWalletRequest {
+                wallet_password: password.as_bytes().to_vec(),
+                ..Default::default()
+            })
+            .await?;
 
         Ok(client)
     }
@@ -201,39 +214,39 @@ async fn create_client(endpoint: Endpoint, macaroon: String) -> Result<LndClient
     let channel = endpoint.connect().await?;
     let macaroon_interceptor = MacaroonInterceptor { macaroon };
 
-    let lightning_client = protobufs::lnrpc::lightning_client::LightningClient::with_interceptor(
+    let lightning_rpc = protobufs::lnrpc::lightning_client::LightningClient::with_interceptor(
         channel.to_owned(),
         macaroon_interceptor.to_owned(),
     );
 
-    let wallet_unlocker_client =
+    let wallet_unlocker_rpc =
         protobufs::lnrpc::wallet_unlocker_client::WalletUnlockerClient::with_interceptor(
             channel.to_owned(),
             macaroon_interceptor.to_owned(),
         );
 
-    let chain_notifier_client =
+    let chain_notifier_rpc =
         protobufs::chainrpc::chain_notifier_client::ChainNotifierClient::with_interceptor(
             channel.to_owned(),
             macaroon_interceptor.to_owned(),
         );
 
-    let invoices_client = protobufs::invoicesrpc::invoices_client::InvoicesClient::with_interceptor(
+    let invoices_rpc = protobufs::invoicesrpc::invoices_client::InvoicesClient::with_interceptor(
         channel.to_owned(),
         macaroon_interceptor.to_owned(),
     );
 
-    let router_client = protobufs::routerrpc::router_client::RouterClient::with_interceptor(
+    let router_rpc = protobufs::routerrpc::router_client::RouterClient::with_interceptor(
         channel.to_owned(),
         macaroon_interceptor.to_owned(),
     );
 
     let client = LndClient {
-        lightning_client,
-        wallet_unlocker_client,
-        chain_notifier_client,
-        invoices_client,
-        router_client,
+        lightning_rpc,
+        wallet_unlocker_rpc,
+        chain_notifier_rpc,
+        invoices_rpc,
+        router_rpc,
     };
 
     Ok(client)
