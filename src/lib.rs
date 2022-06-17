@@ -1,19 +1,19 @@
 mod errors;
+mod methods;
 pub mod protobufs;
-
-use std::str::FromStr;
 
 use errors::Error;
 use protobufs::{
     chainrpc::chain_notifier_client::ChainNotifierClient,
     invoicesrpc::invoices_client::InvoicesClient,
     lnrpc::{
-        lightning_client::LightningClient, wallet_unlocker_client::WalletUnlockerClient,
-        InitWalletRequest, UnlockWalletRequest,
+        lightning_client::LightningClient, state_client::StateClient,
+        wallet_unlocker_client::WalletUnlockerClient,
     },
     routerrpc::router_client::RouterClient,
 };
 use rustls::{RootCertStore, ServerCertVerified, TLSError};
+use std::str::FromStr;
 use tonic::{
     codegen::InterceptedService,
     transport::{Channel, ClientTlsConfig, Endpoint},
@@ -28,6 +28,7 @@ pub type ChainNotifierRpcClient =
     ChainNotifierClient<InterceptedService<Channel, MacaroonInterceptor>>;
 pub type InvoicesRpcClient = InvoicesClient<InterceptedService<Channel, MacaroonInterceptor>>;
 pub type RouterRpcClient = RouterClient<InterceptedService<Channel, MacaroonInterceptor>>;
+pub type StateRpcClient = StateClient<InterceptedService<Channel, MacaroonInterceptor>>;
 
 #[derive(Clone)]
 pub struct LndClient {
@@ -37,114 +38,24 @@ pub struct LndClient {
     pub chain_notifier_rpc: ChainNotifierRpcClient,
     pub invoices_rpc: InvoicesRpcClient,
     pub router_rpc: RouterRpcClient,
+    pub state_rpc: StateRpcClient,
 }
 
 impl LndClient {
-    pub async fn init(
-        node_url: &str,
-        cert_dir: &str,
-        mnemonic: Option<&str>,
-        encryption_passphrase: Option<&str>,
-        master_key: Option<&str>,
-        birthdate: Option<u64>,
-        password: &str,
-    ) -> Result<Self, Error> {
+    pub async fn new(node_url: &str, cert_dir: &str, macaroon_dir: &str) -> Result<Self, Error> {
         let cert_verifier = std::sync::Arc::new(CertVerifier::load(cert_dir).await?);
         let mut tls_config = rustls::ClientConfig::new();
         tls_config
             .dangerous()
             .set_certificate_verifier(cert_verifier);
         tls_config.set_protocols(&["h2".into()]);
-
-        let tls = ClientTlsConfig::new().rustls_client_config(tls_config);
-        let endpoint = Endpoint::from_str(node_url)?.tls_config(tls)?;
-
-        let mut wallet_unlocker_client =
-            protobufs::lnrpc::wallet_unlocker_client::WalletUnlockerClient::connect(
-                endpoint.to_owned(),
-            )
-            .await?;
-
-        let mnemonic = match mnemonic {
-            Some(mnemonic) => mnemonic.split(" ").map(|s| s.to_string()).collect(),
-            None => vec![],
-        };
-
-        let request = InitWalletRequest {
-            wallet_password: password.as_bytes().to_vec(),
-            cipher_seed_mnemonic: mnemonic,
-            aezeed_passphrase: encryption_passphrase
-                .unwrap_or_default()
-                .as_bytes()
-                .to_vec(),
-            extended_master_key: master_key.unwrap_or_default().to_string(),
-            extended_master_key_birthday_timestamp: birthdate.unwrap_or_default(),
-            ..Default::default()
-        };
-
-        let response = wallet_unlocker_client
-            .init_wallet(request)
-            .await?
-            .into_inner();
-
-        let macaroon = hex::encode(response.admin_macaroon);
-
-        let client = create_client(endpoint, macaroon).await?;
-
-        Ok(client)
-    }
-
-    pub async fn new(
-        node_url: &str,
-        cert_dir: &str,
-        macaroon_dir: &str,
-        password: &str,
-    ) -> Result<Self, Error> {
-        let cert_verifier = std::sync::Arc::new(CertVerifier::load(cert_dir).await?);
-        let mut tls_config = rustls::ClientConfig::new();
-        tls_config
-            .dangerous()
-            .set_certificate_verifier(cert_verifier);
-        tls_config.set_protocols(&["h2".into()]);
-
-        // let https_connector = hyper_rustls::HttpsConnectorBuilder::new()
-        //     .with_tls_config(tls_config)
-        //     .https_or_http()
-        //     .enable_http2()
-        //     .build();
-
-        // let client = hyper::Client::builder().build(https_connector);
-
-        // let uri = Uri::from_static("https://127.0.0.1:10080");
-        // let svc = tower::ServiceBuilder::new()
-        //     .map_request(|mut req: hyper::Request<tonic::body::BoxBody>| {
-        //         println!("{}", req.uri());
-        //         let uri = Uri::builder()
-        //             .scheme(uri.scheme().unwrap().clone())
-        //             .authority(uri.authority().unwrap().clone())
-        //             .path_and_query(req.uri().path_and_query().unwrap().clone())
-        //             .build()
-        //             .unwrap();
-        //         println!("{}", uri);
-        //         *req.uri_mut() = uri;
-        //         req
-        //     })
-        //     .service(client);
 
         let tls = ClientTlsConfig::new().rustls_client_config(tls_config);
         let endpoint = Endpoint::from_str(node_url)?.tls_config(tls)?;
 
         let macaroon = hex::encode(std::fs::read(macaroon_dir)?);
 
-        let mut client = create_client(endpoint, macaroon).await?;
-
-        client
-            .wallet_unlocker_rpc
-            .unlock_wallet(UnlockWalletRequest {
-                wallet_password: password.as_bytes().to_vec(),
-                ..Default::default()
-            })
-            .await?;
+        let client = create_client(endpoint, macaroon).await?;
 
         Ok(client)
     }
@@ -210,7 +121,10 @@ impl tonic::service::Interceptor for MacaroonInterceptor {
     }
 }
 
-async fn create_client(endpoint: Endpoint, macaroon: String) -> Result<LndClient, Error> {
+pub(crate) async fn create_client(
+    endpoint: Endpoint,
+    macaroon: String,
+) -> Result<LndClient, Error> {
     let channel = endpoint.connect().await?;
     let macaroon_interceptor = MacaroonInterceptor { macaroon };
 
@@ -241,12 +155,18 @@ async fn create_client(endpoint: Endpoint, macaroon: String) -> Result<LndClient
         macaroon_interceptor.to_owned(),
     );
 
+    let state_rpc = protobufs::lnrpc::state_client::StateClient::with_interceptor(
+        channel.to_owned(),
+        macaroon_interceptor.to_owned(),
+    );
+
     let client = LndClient {
         lightning_rpc,
         wallet_unlocker_rpc,
         chain_notifier_rpc,
         invoices_rpc,
         router_rpc,
+        state_rpc,
     };
 
     Ok(client)
