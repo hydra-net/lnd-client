@@ -10,6 +10,8 @@ pub enum Error {
     IoError(#[from] std::io::Error),
     #[error("gRPC error: {0}")]
     GrpcError(#[from] tonic::transport::Error),
+    #[error("gRPC error status: {0}")]
+    GrpcErrorStatus(#[from] tonic::Status),
     #[error("Invalid uri: {0}")]
     UriError(#[from] hyper::http::uri::InvalidUri),
     #[error("Error: {0}")]
