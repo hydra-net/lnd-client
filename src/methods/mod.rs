@@ -5,4 +5,5 @@ pub mod invoices;
 pub mod onchain;
 pub mod payments;
 pub mod peers;
+pub mod routes;
 pub mod unauthenticated;

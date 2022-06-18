@@ -212,6 +212,24 @@ impl LndClient {
         Ok(response)
     }
 
+    pub async fn send_to_route(
+        &mut self,
+        route: lnrpc::Route,
+    ) -> Result<lnrpc::HtlcAttempt, Error> {
+        let request = tonic::Request::new(routerrpc::SendToRouteRequest {
+            route: Some(route),
+            ..Default::default()
+        });
+
+        let response = self
+            .router_rpc
+            .send_to_route_v2(request)
+            .await?
+            .into_inner();
+
+        Ok(response)
+    }
+
     pub async fn subscribe_payment(
         &mut self,
         payment_hash: &str,
