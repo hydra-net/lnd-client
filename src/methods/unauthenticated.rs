@@ -93,17 +93,7 @@ impl LndClient {
             .await?
             .into_inner();
 
-        let wallet_status: lnrpc::WalletState;
-        match response.state {
-            1 => wallet_status = lnrpc::WalletState::Locked,
-            2 => wallet_status = lnrpc::WalletState::Unlocked,
-            3 => wallet_status = lnrpc::WalletState::RpcActive,
-            4 => wallet_status = lnrpc::WalletState::ServerActive,
-            255 => wallet_status = lnrpc::WalletState::WaitingToStart,
-            _ => wallet_status = lnrpc::WalletState::NonExisting,
-        }
-
-        Ok(wallet_status)
+        Ok(response.state())
     }
 
     pub async fn subscribe_wallet_status(
