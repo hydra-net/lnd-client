@@ -63,9 +63,9 @@ impl LndClient {
                 funding_txid: Some(lnrpc::channel_point::FundingTxid::FundingTxidStr(
                     funding_txid.to_owned(),
                 )),
-                output_index: output_index,
+                output_index,
             }),
-            force: force,
+            force,
             target_conf: target_conf.unwrap_or_default(),
             delivery_address: delivery_address.unwrap_or_default().to_string(),
             sat_per_vbyte: sat_per_vbyte.unwrap_or_default(),
@@ -117,8 +117,8 @@ impl LndClient {
         addr_to_amount.insert(address.to_string(), amount);
 
         let request = tonic::Request::new(lnrpc::EstimateFeeRequest {
-            addr_to_amount: addr_to_amount,
-            target_conf: target_conf,
+            addr_to_amount,
+            target_conf,
             ..Default::default()
         });
 
@@ -160,7 +160,7 @@ impl LndClient {
     ) -> Result<String, Error> {
         let request = tonic::Request::new(lnrpc::SendCoinsRequest {
             addr: address.to_string(),
-            amount: amount,
+            amount,
             target_conf: target_conf.unwrap_or_default(),
             sat_per_vbyte: sat_per_vbyte.unwrap_or_default(),
             ..Default::default()
@@ -184,7 +184,7 @@ impl LndClient {
         }
 
         let request = tonic::Request::new(lnrpc::SendManyRequest {
-            addr_to_amount: addr_to_amount,
+            addr_to_amount,
             target_conf: target_conf.unwrap_or_default(),
             sat_per_vbyte: sat_per_vbyte.unwrap_or_default(),
             ..Default::default()

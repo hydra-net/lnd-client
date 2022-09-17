@@ -79,7 +79,7 @@ impl LndClient {
             funding_txid: Some(lnrpc::channel_point::FundingTxid::FundingTxidStr(
                 funding_txid.to_string(),
             )),
-            output_index: output_index,
+            output_index,
         };
 
         let request = tonic::Request::new(routerrpc::UpdateChanStatusRequest {
@@ -101,7 +101,7 @@ impl LndClient {
             funding_txid: Some(lnrpc::channel_point::FundingTxid::FundingTxidStr(
                 funding_txid.to_string(),
             )),
-            output_index: output_index,
+            output_index,
         };
 
         let request = tonic::Request::new(routerrpc::UpdateChanStatusRequest {

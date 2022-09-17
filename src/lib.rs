@@ -2,7 +2,7 @@ mod errors;
 mod methods;
 pub mod protobufs;
 
-use errors::Error;
+pub use errors::Error;
 use protobufs::{
     chainrpc::chain_notifier_client::ChainNotifierClient,
     invoicesrpc::invoices_client::InvoicesClient,
@@ -97,9 +97,9 @@ impl rustls::ServerCertVerifier for CertVerifier {
             )));
         }
         if presented_certs[0].0 != self.cert {
-            return Err(TLSError::General(format!(
-                "server certificates doesn't match ours"
-            )));
+            return Err(TLSError::General(
+                "server certificates doesn't match ours".to_string(),
+            ));
         }
         Ok(ServerCertVerified::assertion())
     }
@@ -156,8 +156,8 @@ pub(crate) async fn create_client(
     );
 
     let state_rpc = protobufs::lnrpc::state_client::StateClient::with_interceptor(
-        channel.to_owned(),
-        macaroon_interceptor.to_owned(),
+        channel,
+        macaroon_interceptor,
     );
 
     let client = LndClient {

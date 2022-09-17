@@ -31,7 +31,7 @@ impl LndClient {
                 .await?;
 
         let mnemonic = match mnemonic {
-            Some(mnemonic) => mnemonic.split(" ").map(|s| s.to_string()).collect(),
+            Some(mnemonic) => mnemonic.split(' ').map(|s| s.to_string()).collect(),
             None => vec![],
         };
 
